@@ -1,0 +1,3 @@
+[submodule "training_code/edge_ml_age_gender_recognition"]
+	path = training_code/edge_ml_age_gender_recognition
+	url = https://github.com/AIWintermuteAI/edge_ml_age_gender_recognition.git
