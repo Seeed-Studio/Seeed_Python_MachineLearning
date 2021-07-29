@@ -4,22 +4,21 @@ import os
 import cv2
 import numpy as np
 
-from cv_utils import decode_yolov2, preprocess, draw_bounding_boxes
+from cv_utils import decode_yolov3, preprocess, draw_bounding_boxes
 from tflite_runtime.interpreter import Interpreter
 from flask import Flask, render_template, request, Response
 
 app = Flask (__name__, static_url_path = '')
 
-def process_age_gender(roi_img):
+def process_face_expression(roi_img):
 
-    ages = ['0-10', '11-20', '21-45', '46-60', '60-100']
-    genders = ['M', 'F']
+    emotion_list = ['neutral', 'happiness',	'surprise', 'sadness', 'anger', 'disgust', 'fear', 'contempt', 'unknown']
 
-    results = second_stage_network.run(roi_img)
-    age = np.argmax(results[0])
-    gender = 0 if results[1] < 0.5 else 1
+    results = np.squeeze(second_stage_network.run(roi_img))
+    emotion_idx = np.argmax(results)
+    emotion_confience = np.max(results)
 
-    label = f'{ages[age]} : {genders[gender]}'
+    label = f'{emotion_list[emotion_idx]} {emotion_confience:.4f}%'
 
     return label
 
@@ -63,8 +62,9 @@ class Detector(NetworkExecutor):
         results = self.run(frame)
         elapsed_ms = (time.time() - start_time) * 1000
 
-        detections = decode_yolov2(netout = results, nms_threshold = 0.1, threshold = self.threshold)
-        draw_bounding_boxes(frame, detections, None, process_age_gender)
+        detections = decode_yolov3(netout = results, nms_threshold = 0.1, threshold = args.threshold, anchors = [[[0.51424575, 0.54116074], [0.29523918, 0.45838044], [0.21371929, 0.21518053]],
+                                    [[0.10255913, 0.42572159], [0.05785894, 0.17925645], [0.01839256, 0.07238193]]])
+        draw_bounding_boxes(frame, detections, None, process_face_expression)
 
         fps  = 1 / elapsed_ms*1000
         print("Estimated frames per second : {0:.2f} Inference time: {1:.2f}".format(fps, elapsed_ms))
@@ -88,7 +88,7 @@ def video_feed():
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--first_stage', help='File path of .tflite file.', required=True)
 parser.add_argument('--second_stage', help='File path of .tflite file.', required=True) 
-parser.add_argument('--threshold', help='Confidence threshold.', default=0.5)
+parser.add_argument('--threshold', help='Confidence threshold.', default=0.8)
 parser.add_argument('--source', help='picamera or cv', default='cv')
 args = parser.parse_args()
 

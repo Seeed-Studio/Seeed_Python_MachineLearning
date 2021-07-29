@@ -5,29 +5,30 @@ import cv2
 import numpy as np
 from tqdm import tqdm
 
-from cv_utils import init_video_file_capture, decode_yolov2, decode_classifier, draw_classification, draw_bounding_boxes, preprocess
+from cv_utils import init_video_file_capture, decode_yolov3, decode_classifier, draw_classification, draw_bounding_boxes, preprocess
 from tflite_runtime.interpreter import Interpreter
 
-def process_age_gender(roi_img):
+def load_labels(path):
+    with open(path, 'r') as f:
+        return {i: line.strip() for i, line in enumerate(f.readlines())}
 
-    ages = ['0-10', '11-20', '21-45', '46-60', '60-100']
-    genders = ['M', 'F']
+def process_vehicle_type(roi_img):
 
     results = second_stage_network.run(roi_img)
-    age = np.argmax(results[0])
-    gender = 0 if results[1] < 0.5 else 1
-
-    label = f'{ages[age]} : {genders[gender]}'
+    vehicle_type = np.argmax(results[0])
+    confidence = np.max(results[0])
+    label = f'{labels[vehicle_type]} : {confidence}'
 
     return label
 
 class NetworkExecutor(object):
 
-    def __init__(self, model_file):
+    def __init__(self, model_file, num_threads=3):
 
-        self.interpreter = Interpreter(model_file, num_threads=3)
+        self.interpreter = Interpreter(model_file, num_threads=num_threads)
         self.interpreter.allocate_tensors()
         _, self.input_height, self.input_width, _ = self.interpreter.get_input_details()[0]['shape']
+        print(self.input_height, self.input_width)
         self.tensor_index = self.interpreter.get_input_details()[0]['index']
 
     def get_output_tensors(self):
@@ -51,7 +52,7 @@ class NetworkExecutor(object):
         return self.get_output_tensors()
 
 def main(args):
-    video, video_writer, frame_count = init_video_file_capture(args.file, 'age_gender_demo')
+    video, video_writer, frame_count = init_video_file_capture(args.file, 'vehicle_type_demo')
 
     frame_num = len(frame_count)
     times = []
@@ -64,8 +65,8 @@ def main(args):
         start_time = time.time()
         
         results = first_stage_network.run(frame)
-        detections = decode_yolov2(netout = results, nms_threshold = 0.1, threshold = args.threshold)
-        draw_bounding_boxes(frame, detections, None, process_age_gender)
+        detections = decode_yolov3(netout = results, nms_threshold = 0.1, threshold = args.threshold)
+        draw_bounding_boxes(frame, detections, None, process_vehicle_type)
 
         elapsed_ms = (time.time() - start_time) * 1000
 
@@ -84,13 +85,19 @@ if __name__ == "__main__" :
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--first_stage', help='File path of .tflite file.', required=True)
-    parser.add_argument('--second_stage', help='File path of .tflite file.', required=True)    
+    parser.add_argument('--second_stage', help='File path of .tflite file.', required=True) 
+    parser.add_argument('--labels', nargs="+", help='File path of labels file.', required=True)   
     parser.add_argument('--threshold', help='Confidence threshold.', default=0.7)
     parser.add_argument('--file', help='File path of video file', required=True)
     args = parser.parse_args()
 
-    first_stage_network = NetworkExecutor(args.first_stage)
-    second_stage_network = NetworkExecutor(args.second_stage)
+    first_stage_network = NetworkExecutor(args.first_stage, num_threads=2)
+    second_stage_network = NetworkExecutor(args.second_stage, num_threads=2)
+
+    if not os.path.exists(args.labels[0]):
+        labels = args.labels
+    else:   
+        labels = load_labels(args.labels[0])
 
     main(args)
     
