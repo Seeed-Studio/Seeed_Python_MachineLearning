@@ -5,7 +5,7 @@ This sample application guides the user and shows how to perform age/gender reco
 
 The application takes a model and video file or camera feed as input, runs inference on each frame, and draws bounding boxes around detected faces and age/gender labels overlaid.
 
-## Human face age/gender recognitionfrom Video File
+## Human face age/gender recognition from Video File
 Human face age/gender recognition demo that takes a video file, runs inference on each frame producing
 bounding boxes and labels around detected faces, and saves the processed video.
 
