@@ -14,13 +14,15 @@ from argparse import ArgumentParser
 from cv_utils import init_video_stream_capture
 
 mp_drawing = mp.solutions.drawing_utils
-mp_face_detection = mp.solutions.face_detection
+mp_drawing_styles = mp.solutions.drawing_styles
+mp_hands =  mp.solutions.hands
 
 def main(args):
     video = init_video_stream_capture(args.video_source)
 
-    with mp_face_detection.FaceDetection(model_selection=args.model_selection,
-         min_detection_confidence=args.min_detection_confidence) as face_detection:
+    with mp_hands.Hands(model_complexity=args.model_selection,
+            min_detection_confidence=args.min_detection_confidence,
+            min_tracking_confidence=0.5) as hands:
 
         while True:
 
@@ -36,20 +38,25 @@ def main(args):
             image.flags.writeable = False
 
             start_time = time.time()
-            results = face_detection.process(image)
+            results = hands.process(image)
             end_time = (time.time() - start_time)*1000
 
             print("FPS: ", 1.0 / (time.time() - start_time)) # FPS = 1 / time to process loop
             print("Time(ms): ", (time.time() - start_time)*1000) 
 
-            # Draw the face mesh annotations on the image.
+            # Draw the hand landmarks annotations on the image.
             image.flags.writeable = True
             image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-            if results.detections:
-                for detection in results.detections:
-                    mp_drawing.draw_detection(image, detection)
+            if results.multi_hand_landmarks:
+                for hand_landmarks in results.multi_hand_landmarks:
+                    mp_drawing.draw_landmarks(
+                        image,
+                        hand_landmarks,
+                        mp_hands.HAND_CONNECTIONS,
+                        mp_drawing_styles.get_default_hand_landmarks_style(),
+                        mp_drawing_styles.get_default_hand_connections_style())
 
-            cv2.imshow('MediaPipe Face Detection Demo', image)
+            cv2.imshow('MediaPipe Hands', image)
 
             if cv2.waitKey(1) == 27:
                 print('\nExit key activated. Closing video...')
@@ -65,7 +72,7 @@ if __name__ == '__main__':
     parser.add_argument('--min_detection_confidence', default=0.5, type=float,
                         help='Minimum confidence value ([0.0, 1.0]) from the face detection model for the detection to be considered successful. Default to 0.5')
 
-    parser.add_argument('--model_selection', default=1, type=int,
+    parser.add_argument('--model_selection', default=0, type=int,
                         help='Use 0 to select a short-range model that works best for faces within 2 meters from the camera, and 1 for a full-range model best for faces within 5 meters.')
 
     args = parser.parse_args()
